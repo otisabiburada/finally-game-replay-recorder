@@ -1,0 +1,4 @@
+Finally Game Recorder is based on decky-recorder-fork (https://github.com/SDH-Stewardship/decky-recorder-fork,
+by marissa999 / safijari and contributors), itself based on Recapture by Avery. The GStreamer pipeline
+shape, the rnnoise microphone chain, the Steam + Start shortcut and backend/ (Dockerfile, Makefile,
+entrypoint.sh, unmodified) come from there. License: BSD-3-Clause (see LICENSE).

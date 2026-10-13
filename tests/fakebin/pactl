@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+import os, sys
+log, state = os.environ["FAKE_LOG"], os.environ["FAKE_PA_STATE"]
+a = sys.argv[1:]
+open(log, "a").write("pactl " + " ".join(a) + "\n")
+mods = [l.rstrip("\n") for l in open(state)] if os.path.exists(state) else []
+if a[:1] == ["get-default-sink"]: print("fake_sink"); sys.exit(0)
+if a[:1] == ["get-default-source"]: print("fake_mic"); sys.exit(0)
+if a[:1] == ["load-module"]:
+    if os.environ.get("FAKE_PA_FAIL") and os.environ["FAKE_PA_FAIL"] == a[1]: sys.stderr.write("Failure: Module initialization failed\n"); sys.exit(1)
+    mid = (max([int(m.split("\t")[0]) for m in mods]) + 1) if mods else 20
+    mods.append(f"{mid}\t{a[1]}\t{' '.join(a[2:])}"); open(state, "w").write("\n".join(mods) + "\n"); print(mid); sys.exit(0)
+if a[:1] == ["unload-module"]:
+    mods = [m for m in mods if m.split("\t")[0] != a[1]]; open(state, "w").write("\n".join(mods) + ("\n" if mods else "")); sys.exit(0)
+if a[:3] == ["list", "short", "modules"]: print("\n".join(mods)); sys.exit(0)
+if a[:3] == ["list", "short", "sources"]:
+    for m in mods:
+        parts = m.split("\t")
+        if parts[1] == "module-null-sink": print(f"{parts[0]}\t{parts[2].split('sink_name=')[1].split()[0]}.monitor\tmodule\ts16le\tIDLE")
+    print("1\tfake_mic\tPipeWire\ts16le 2ch 48000Hz\tRUNNING\n2\tfake_sink.monitor\tPipeWire\ts16le\tIDLE\n3\tFinally-Rec-Mic\tmodule\ts16le\tIDLE"); sys.exit(0)
+sys.exit(0)

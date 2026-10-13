@@ -1,0 +1,17 @@
+{
+  "name": "Finally Game Recorder",
+  "author": "otisabi",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "capture",
+      "recorder",
+      "video",
+      "utility"
+    ],
+    "description": "Record gameplay in Game Mode with a replay buffer, clip shortcut, game audio and microphone.",
+    "image": "https://opengraph.githubassets.com/1/otisabiburada/finally-game-recorder",
+    "resourceLink": "https://github.com/otisabiburada/finally-game-recorder"
+  }
+}

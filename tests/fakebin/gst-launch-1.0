@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Pretends to be gst-launch-1.0: honours location=, -e (SIGINT), writes real mkv files made by ffmpeg.
+FAKE_GST_HANG=<s>: after <s> seconds stop producing data AND ignore SIGINT (a wedged encoder).
+  Only the first launch hangs unless FAKE_GST_HANG_ALWAYS=1."""
+import os, shutil, signal, sys, time
+args = sys.argv[1:]
+open(os.environ["FAKE_LOG"], "a").write("gst-launch " + " ".join(args) + "\n")
+if os.environ.get("FAKE_GST_FAIL"):
+    sys.stderr.write("ERROR: from element /GstPipeline:pipeline0/GstPipeWireSrc:pipewiresrc0: boom no stream\n"); sys.exit(1)
+if "-v" in args and "fakesink" in args and os.environ.get("FAKE_CAPTURE_FAIL_PLAIN") and "videoconvert" not in args:
+    sys.stderr.write("Setting pipeline to PAUSED ...\n0:00:00.050000000 123 0x55d0c8a0 WARN                pipewiresrc gstpipewiresrc.c:1234:on_state_changed: stream error: no more input formats\n"
+                     "Failed to set pipeline to PAUSED.\nSetting pipeline to NULL ...\n"); sys.exit(1)
+if "-v" in args and "fakesink" in args:         # size probe used by the ffmpeg engine
+    sys.stderr.write("/GstPipeline:pipeline0/GstPipeWireSrc:pipewiresrc0.GstPad:src: caps = video/x-raw, format=(string)BGRx, "
+                     "width=(int)1280, height=(int)800, framerate=(fraction)0/1\n"); sys.exit(0)
+sample = os.environ["FAKE_SAMPLE"]
+loc = next((a.split("=", 1)[1] for a in args if a.startswith("location=")), None)
+stop = {"v": False}
+signal.signal(signal.SIGINT, lambda *a: stop.update(v=True))
+hang = None
+if os.environ.get("FAKE_GST_HANG"):
+    used = os.environ["FAKE_LOG"] + ".hang_used"
+    if os.environ.get("FAKE_GST_HANG_ALWAYS") or not os.path.exists(used):
+        open(used, "w").close(); hang = float(os.environ["FAKE_GST_HANG"])
+t0 = time.time()
+
+def wedge():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)       # EOS never completes
+    while True: time.sleep(1)
+
+if "fdsink" in args:                             # ffmpeg engine feeder: raw NV12 frames on stdout at a constant rate
+    caps = next(a for a in args if a.startswith("video/x-raw,format=NV12"))
+    kv = dict(x.split("=", 1) for x in caps.split(",")[1:])
+    w, h, fps = int(kv["width"]), int(kv["height"]), int(kv["framerate"].split("/")[0])
+    size = w * h * 3 // 2
+    n = 0
+    while not stop["v"]:
+        if hang is not None and time.time() - t0 >= hang: wedge()
+        try:
+            os.write(1, bytes([(n * 7) % 256]) * size) if False else sys.stdout.buffer.write(bytes([(n * 7) % 256]) * size)
+            sys.stdout.buffer.flush()
+        except BrokenPipeError:
+            sys.exit(1)
+        n += 1; time.sleep(1.0 / (fps * float(os.environ.get('FAKE_FEED_FACTOR', '1'))))
+    sys.exit(0)
+
+if "videotestsrc" in args:                      # self-test style one-shot run
+    if loc and "%05d" in loc:
+        for i in range(3): shutil.copyfile(sample, loc % i); time.sleep(0.05)
+    elif loc: shutil.copyfile(sample, loc)
+    sys.exit(0)
+if loc and "%05d" in loc:
+    i = 0
+    while not stop["v"]:
+        if hang is not None and time.time() - t0 >= hang: wedge()
+        shutil.copyfile(sample, loc % i); i += 1
+        for _ in range(8):
+            if stop["v"]: break
+            time.sleep(0.05)
+    sys.exit(0)
+if loc:
+    if hang is None:
+        shutil.copyfile(sample, loc)
+    else:                                        # paced growth, complete valid file exactly at hang time
+        data = open(sample, "rb").read(); n = 40
+        with open(loc, "wb") as f:
+            for k in range(n):
+                f.write(data[k * len(data) // n:(k + 1) * len(data) // n]); f.flush()
+                time.sleep(hang / n)
+        wedge()
+while not stop["v"]:
+    time.sleep(0.05)
+sys.exit(0)

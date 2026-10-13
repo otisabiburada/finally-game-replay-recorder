@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "noEmit": true, "types": [], "typeRoots": [], "rootDir": "..", "ignoreDeprecations": "6.0" },
+  "include": ["../src", "./stubs.d.ts"]
+}
